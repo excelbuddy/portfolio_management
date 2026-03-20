@@ -215,24 +215,31 @@ with tab2:
                 txn_qty = st.number_input("Số lượng *", min_value=0, step=100, value=0, key="txn_qty")
             if needs_price:
                 txn_price = st.number_input("Giá *", min_value=0, step=100, value=0, key="txn_price")
-                gross = txn_qty * txn_price
+                # Đọc từ session_state để luôn có giá trị mới nhất sau khi user nhập
+                _qty   = int(st.session_state.get("txn_qty",   0))
+                _price = int(st.session_state.get("txn_price", 0))
+                gross  = _qty * _price
                 if txn_type == "Mua":
+                    _default_fee = int(gross * buy_fee_rate)
                     txn_fee = st.number_input(
                         f"Phí mua (tự động {acc_info.get('buy_fee_rate','0.15')}%)",
-                        value=int(gross * buy_fee_rate), step=1000, key="txn_fee")
+                        value=_default_fee, step=1000, key="txn_fee")
                     txn_tax = 0
-                else:
+                else:  # Bán
+                    _default_fee = int(gross * sell_fee_rate)
+                    _default_tax = int(gross * 0.001)   # thuế TNCN 0.1%
                     txn_fee = st.number_input(
                         f"Phí bán (tự động {acc_info.get('sell_fee_rate','0.15')}%)",
-                        value=int(gross * sell_fee_rate), step=1000, key="txn_fee")
+                        value=_default_fee, step=1000, key="txn_fee")
                     txn_tax = st.number_input(
-                        "Thuế TNCN (0.1%)", value=int(gross * 0.001), step=1000, key="txn_tax")
+                        "Thuế TNCN khi bán (0.1%)", value=_default_tax, step=1000, key="txn_tax")
 
             if needs_amount:
                 txn_amount = st.number_input("Số tiền *", min_value=0, step=10000, key="txn_amt")
                 if txn_type == "Cổ tức tiền mặt":
+                    _amt = int(st.session_state.get("txn_amt", 0))
                     txn_tax = st.number_input(
-                        "Thuế cổ tức (5%)", value=int(txn_amount * 0.05), step=1000, key="txn_tax_div")
+                        "Thuế cổ tức (5%)", value=int(_amt * 0.05), step=1000, key="txn_tax_div")
 
             txn_note = st.text_input("Ghi chú", key="txn_note")
 
