@@ -206,8 +206,8 @@ with tab2:
         sell_fee_rate = float(acc_info.get("sell_fee_rate", 0.15)) / 100
 
         with col2:
-            txn_symbol = txn_qty = txn_price = txn_fee = txn_tax = txn_amount = 0
             txn_symbol = ""
+            txn_qty = txn_price = txn_amount = 0
 
             if needs_symbol:
                 txn_symbol = st.text_input("Mã cổ phiếu *", key="txn_sym").upper().strip()
@@ -215,54 +215,65 @@ with tab2:
                 txn_qty = st.number_input("Số lượng *", min_value=0, step=100, value=0, key="txn_qty")
             if needs_price:
                 txn_price = st.number_input("Giá *", min_value=0, step=100, value=0, key="txn_price")
-                # Đọc từ session_state để luôn có giá trị mới nhất sau khi user nhập
-                _qty   = int(st.session_state.get("txn_qty",   0))
-                _price = int(st.session_state.get("txn_price", 0))
-                gross  = _qty * _price
+                # Chỉ hiển thị thông tin % - không dùng widget để tính fee/tax
+                gross = txn_qty * txn_price
                 if txn_type == "Mua":
-                    _default_fee = int(gross * buy_fee_rate)
-                    txn_fee = st.number_input(
-                        f"Phí mua (tự động {acc_info.get('buy_fee_rate','0.15')}%)",
-                        value=_default_fee, step=1000, key="txn_fee")
-                    txn_tax = 0
+                    fee_rate_pct = acc_info.get("buy_fee_rate", 0.15)
+                    st.info(f"💡 Phí mua: **{fee_rate_pct}%** → ~{int(gross * float(fee_rate_pct) / 100):,} đ  |  Thuế: không có")
                 else:  # Bán
-                    _default_fee = int(gross * sell_fee_rate)
-                    _default_tax = int(gross * 0.001)   # thuế TNCN 0.1%
-                    txn_fee = st.number_input(
-                        f"Phí bán (tự động {acc_info.get('sell_fee_rate','0.15')}%)",
-                        value=_default_fee, step=1000, key="txn_fee")
-                    txn_tax = st.number_input(
-                        "Thuế TNCN khi bán (0.1%)", value=_default_tax, step=1000, key="txn_tax")
+                    fee_rate_pct = acc_info.get("sell_fee_rate", 0.15)
+                    st.info(f"💡 Phí bán: **{fee_rate_pct}%** → ~{int(gross * float(fee_rate_pct) / 100):,} đ  |  Thuế TNCN: **0.1%** → ~{int(gross * 0.001):,} đ")
 
             if needs_amount:
                 txn_amount = st.number_input("Số tiền *", min_value=0, step=10000, key="txn_amt")
                 if txn_type == "Cổ tức tiền mặt":
-                    _amt = int(st.session_state.get("txn_amt", 0))
-                    txn_tax = st.number_input(
-                        "Thuế cổ tức (5%)", value=int(_amt * 0.05), step=1000, key="txn_tax_div")
+                    st.info(f"💡 Thuế cổ tức: **5%** → ~{int(txn_amount * 0.05):,} đ")
 
             txn_note = st.text_input("Ghi chú", key="txn_note")
 
         st.divider()
         if st.button("💾 Lưu giao dịch", type="primary"):
             errors = []
-            if needs_symbol and not txn_symbol:      errors.append("Chưa nhập mã cổ phiếu")
-            if needs_qty    and txn_qty    <= 0:     errors.append("Số lượng phải > 0")
-            if needs_price  and txn_price  <= 0:     errors.append("Giá phải > 0")
-            if needs_amount and txn_amount <= 0:     errors.append("Số tiền phải > 0")
+            if needs_symbol and not txn_symbol:  errors.append("Chưa nhập mã cổ phiếu")
+            if needs_qty    and txn_qty    <= 0: errors.append("Số lượng phải > 0")
+            if needs_price  and txn_price  <= 0: errors.append("Giá phải > 0")
+            if needs_amount and txn_amount <= 0: errors.append("Số tiền phải > 0")
 
             if errors:
                 for e in errors: st.error(f"❌ {e}")
             else:
                 try:
-                    final_amount = (txn_qty * txn_price) if needs_price else txn_amount
-                    final_tax    = txn_tax if (needs_price or txn_type == "Cổ tức tiền mặt") else 0
+                    # Tính phí và thuế hoàn toàn trong Python - không phụ thuộc widget
+                    _buy_fee_rate  = float(acc_info.get("buy_fee_rate",  0.15)) / 100
+                    _sell_fee_rate = float(acc_info.get("sell_fee_rate", 0.15)) / 100
+                    _gross = txn_qty * txn_price
+
+                    if txn_type == "Mua":
+                        calc_fee = round(_gross * _buy_fee_rate)
+                        calc_tax = 0
+                    elif txn_type == "Bán":
+                        calc_fee = round(_gross * _sell_fee_rate)
+                        calc_tax = round(_gross * 0.001)   # TNCN 0.1%
+                    elif txn_type == "Cổ tức tiền mặt":
+                        calc_fee = 0
+                        calc_tax = round(txn_amount * 0.05)  # 5%
+                    else:
+                        calc_fee = 0
+                        calc_tax = 0
+
+                    final_amount = _gross if needs_price else txn_amount
+
                     msg = logic.add_transaction({
-                        "account":  txn_account, "type":    txn_type,
-                        "date":     str(txn_date),"symbol":  txn_symbol,
-                        "quantity": txn_qty,      "price":   txn_price,
-                        "fee":      txn_fee,       "tax":     final_tax,
-                        "amount":   final_amount,  "note":    txn_note
+                        "account":  txn_account,
+                        "type":     txn_type,
+                        "date":     str(txn_date),
+                        "symbol":   txn_symbol,
+                        "quantity": txn_qty,
+                        "price":    txn_price,
+                        "fee":      calc_fee,
+                        "tax":      calc_tax,
+                        "amount":   final_amount,
+                        "note":     txn_note
                     })
                     st.success(msg)
                     sm.invalidate("Transactions","BuyLots","SellMatches","CashLedger")
