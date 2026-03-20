@@ -7,6 +7,8 @@ sys.path.append(os.path.dirname(__file__))
 from sheets_manager import SheetsManager
 from portfolio_logic import PortfolioLogic
 from config import get_config
+from charts_page import render_charts
+from dashboard_page import render_dashboard
 
 st.set_page_config(page_title="📈 Stock Tracker", page_icon="📈",
                    layout="wide", initial_sidebar_state="expanded")
@@ -131,11 +133,15 @@ selected_account  = st.session_state.selected_account
 accounts          = st.session_state.accounts
 
 # ══════════════════════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4 = st.tabs(["📋 Danh mục", "➕ Ghi giao dịch",
-                                   "🏦 Quản lý tài khoản", "📜 Lịch sử GD"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🖥️ Dashboard", "📋 Danh mục", "➕ Ghi giao dịch",
+                                   "🏦 Quản lý tài khoản", "📜 Lịch sử GD", "📊 Charts"])
 
-# ──────────────────────────────────────────── TAB 1: DANH MỤC ────────────────
+# ──────────────────────────────────────────── TAB 1: DASHBOARD ──────────────
 with tab1:
+    render_dashboard(sm, selected_account, accounts)
+
+# ──────────────────────────────────────────── TAB 2: DANH MỤC ────────────────
+with tab2:
     st.markdown('<div class="section-header">📊 Danh mục đang nắm giữ</div>', unsafe_allow_html=True)
 
     portfolio_df = logic.get_portfolio(selected_account)
@@ -176,8 +182,8 @@ with tab1:
     else:
         st.info("Chưa có giao dịch bán nào.")
 
-# ──────────────────────────────────────────── TAB 2: GHI GIAO DỊCH ───────────
-with tab2:
+# ──────────────────────────────────────────── TAB 3: GHI GIAO DỊCH ───────────
+with tab3:
     st.markdown('<div class="section-header">➕ Ghi giao dịch mới</div>', unsafe_allow_html=True)
 
     if not accounts:
@@ -280,8 +286,8 @@ with tab2:
                 except Exception as e:
                     st.error(f"❌ Lỗi: {e}")
 
-# ──────────────────────────────────────────── TAB 3: TÀI KHOẢN ───────────────
-with tab3:
+# ──────────────────────────────────────────── TAB 4: TÀI KHOẢN ───────────────
+with tab4:
     st.markdown('<div class="section-header">🏦 Danh sách tài khoản</div>', unsafe_allow_html=True)
 
     if accounts:
@@ -319,8 +325,8 @@ with tab3:
             else:
                 st.error("Vui lòng nhập tên tài khoản")
 
-# ──────────────────────────────────────────── TAB 4: LỊCH SỬ ─────────────────
-with tab4:
+# ──────────────────────────────────────────── TAB 5: LỊCH SỬ ─────────────────
+with tab5:
     st.markdown('<div class="section-header">📜 Lịch sử giao dịch</div>', unsafe_allow_html=True)
     fc1, fc2, fc3 = st.columns(3)
     with fc1:
@@ -344,3 +350,7 @@ with tab4:
             st.caption(f"Tổng mua: {total_buy:,.0f} đ  |  Tổng bán: {total_sell:,.0f} đ")
     else:
         st.info("Không có giao dịch nào trong điều kiện lọc.")
+
+# ──────────────────────────────────────────── TAB 5: CHARTS ──────────────────
+with tab6:
+    render_charts(sm, selected_account, accounts)
